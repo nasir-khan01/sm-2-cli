@@ -16,10 +16,11 @@ from dataclasses import dataclass
 DB_DIR = Path.home() / ".dsaprep"
 DB_PATH = DB_DIR / "study.db"
 
-# Default patterns
-DEFAULT_PATTERNS = [
+# Default patterns (NeetCode order)
+PATTERN_ORDER = [
+    "Arrays & Hashing",
     "Two Pointers",
-    "Sliding Window", 
+    "Sliding Window",
     "Stack",
     "Binary Search",
     "Linked Lists",
@@ -28,12 +29,16 @@ DEFAULT_PATTERNS = [
     "Heap / Priority Queue",
     "Backtracking",
     "Graphs",
-    "Dynamic Programming",
+    "1-D Dynamic Programming",
+    "2-D Dynamic Programming",
     "Greedy",
     "Intervals",
     "Math & Geometry",
     "Bit Manipulation",
 ]
+
+# For backwards compatibility
+DEFAULT_PATTERNS = PATTERN_ORDER
 
 
 @dataclass

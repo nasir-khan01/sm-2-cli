@@ -32,6 +32,7 @@ from dsaprep.database import (
     update_problem_srs,
     DB_PATH,
     DEFAULT_PATTERNS,
+    PATTERN_ORDER,
 )
 from dsaprep.srs import calculate_sm2
 
@@ -130,8 +131,15 @@ def dashboard(
     console.print(Panel(summary_text, border_style="cyan"))
     console.print()
     
-    # Pattern-wise progress
-    for pattern, stats in sorted(pattern_stats.items(), key=lambda x: -x[1]['progress']):
+    # Pattern-wise progress (NeetCode order)
+    def pattern_sort_key(item):
+        pattern = item[0]
+        try:
+            return PATTERN_ORDER.index(pattern)
+        except ValueError:
+            return len(PATTERN_ORDER)  # Unknown patterns go last
+    
+    for pattern, stats in sorted(pattern_stats.items(), key=pattern_sort_key):
         # Progress bar
         progress_pct = stats['progress']
         filled = int(progress_pct / 10)
@@ -232,7 +240,8 @@ def add_problem(
 
 @app.command("next")
 def next_problem(
-    list_filter: Optional[str] = typer.Option(None, "--list", "-l", help="Filter by source list")
+    list_filter: Optional[str] = typer.Option(None, "--list", "-l", help="Filter by source list"),
+    pattern_filter: Optional[str] = typer.Option(None, "--pattern", "-p", help="Filter by pattern")
 ):
     """
     Get the next problem to solve.
@@ -244,11 +253,40 @@ def next_problem(
     # Check for slacking first
     check_slacking()
     
+    # Get next problem (with optional list filter)
     problem = get_next_problem(source_list=list_filter)
     
+    # If pattern filter is specified, find next problem matching that pattern
+    if pattern_filter:
+        problems = get_all_problems(source_list=list_filter)
+        # Filter by pattern (partial match, case-insensitive)
+        matching = [p for p in problems if p.pattern and pattern_filter.lower() in p.pattern.lower()]
+        
+        today = date.today()
+        # Priority: overdue > due today > new
+        overdue = [p for p in matching if p.next_review and p.next_review < today]
+        due_today = [p for p in matching if p.next_review and p.next_review == today]
+        new = [p for p in matching if p.next_review is None]
+        
+        if overdue:
+            overdue.sort(key=lambda p: p.next_review)
+            problem = overdue[0]
+        elif due_today:
+            problem = due_today[0]
+        elif new:
+            problem = new[0]
+        else:
+            problem = None
+    
     if not problem:
+        filters = []
         if list_filter:
-            msg = f"No problems due for review in [bold]{list_filter}[/bold]."
+            filters.append(f"list '{list_filter}'")
+        if pattern_filter:
+            filters.append(f"pattern '{pattern_filter}'")
+        
+        if filters:
+            msg = f"No problems due for review in {' and '.join(filters)}."
         else:
             msg = "No problems due for review."
         
@@ -380,45 +418,156 @@ def solve(problem_id: int):
 
 
 @app.command()
+def log(
+    search: Optional[str] = typer.Argument(None, help="Problem name or ID to search for"),
+    score: Optional[int] = typer.Option(None, "--score", "-s", help="Rating score (0-5)")
+):
+    """
+    Log/rate a problem you've already solved (without opening browser).
+    
+    Search by name or ID. If multiple matches, you'll be asked to choose.
+    """
+    console.print("\n[bold cyan]📝 Log Problem[/bold cyan]\n")
+    
+    # Get search term if not provided
+    if not search:
+        search = Prompt.ask("[bold]Problem name or ID[/bold]")
+    
+    # Try to find problem
+    problems = get_all_problems()
+    
+    # Check if it's an ID
+    try:
+        problem_id = int(search)
+        problem = get_problem_by_id(problem_id)
+        if problem:
+            matches = [problem]
+        else:
+            matches = []
+    except ValueError:
+        # Search by name (case-insensitive partial match)
+        matches = [p for p in problems if search.lower() in p.name.lower()]
+    
+    if not matches:
+        console.print(f"[red]No problems found matching '{search}'[/red]\n")
+        raise typer.Exit(1)
+    
+    # If multiple matches, let user choose
+    if len(matches) > 1:
+        console.print(f"Found {len(matches)} matches:\n")
+        for i, p in enumerate(matches[:10], 1):
+            console.print(f"  {i}. [bold]{p.name}[/bold] [dim](#{p.id}, {p.pattern})[/dim]")
+        
+        if len(matches) > 10:
+            console.print(f"  ... and {len(matches) - 10} more")
+        
+        console.print()
+        choice = IntPrompt.ask("[bold]Select problem[/bold]", default=1)
+        if choice < 1 or choice > len(matches):
+            console.print("[red]Invalid choice[/red]")
+            raise typer.Exit(1)
+        problem = matches[choice - 1]
+    else:
+        problem = matches[0]
+    
+    console.print(f"[bold]{problem.name}[/bold]")
+    console.print(f"[dim]Pattern: {problem.pattern} | Difficulty: {problem.difficulty}[/dim]\n")
+    
+    # Get score if not provided
+    if score is None:
+        console.print("Rate how it went:\n")
+        console.print("  [bold red]0[/bold red] - Complete blackout")
+        console.print("  [bold red]1[/bold red] - Incorrect, knew after reveal")
+        console.print("  [bold yellow]2[/bold yellow] - Incorrect, seemed easy")
+        console.print("  [bold green]3[/bold green] - Correct with difficulty")
+        console.print("  [bold green]4[/bold green] - Correct after hesitation")
+        console.print("  [bold cyan]5[/bold cyan] - Perfect recall")
+        console.print()
+        
+        while True:
+            score = IntPrompt.ask("[bold]Your rating (0-5)[/bold]", default=3)
+            if 0 <= score <= 5:
+                break
+            console.print("[red]Please enter a number between 0 and 5[/red]")
+    
+    # Calculate and update
+    result = calculate_sm2(
+        quality=score,
+        repetition=problem.repetition,
+        ease_factor=problem.ease_factor,
+        interval=problem.interval
+    )
+    
+    update_problem_srs(
+        problem_id=problem.id,
+        next_review=result.next_review,
+        interval=result.interval,
+        ease_factor=result.ease_factor,
+        repetition=result.repetition
+    )
+    
+    # Show result
+    console.print()
+    if score < 3:
+        console.print(f"[yellow]⚠ Will review tomorrow.[/yellow] Next: {result.next_review}\n")
+    else:
+        console.print(f"[green]✓ Logged![/green] Next review: {result.next_review} (in {result.interval} days)\n")
+
+
+@app.command()
 def stats(
-    list_filter: Optional[str] = typer.Option(None, "--list", "-l", help="Filter by source list")
+    list_filter: Optional[str] = typer.Option(None, "--list", "-l", help="Filter by source list"),
+    pattern_filter: Optional[str] = typer.Option(None, "--pattern", "-p", help="Filter by pattern")
 ):
     """
     Display your study progress and statistics.
     """
     console.print("\n[bold cyan]📊 DSAPrep Statistics[/bold cyan]\n")
     
-    # Get stats
-    stat = get_stats(source_list=list_filter)
+    # Get problems with filters
     problems = get_all_problems(source_list=list_filter)
     
+    # Apply pattern filter
+    if pattern_filter:
+        problems = [p for p in problems if p.pattern and pattern_filter.lower() in p.pattern.lower()]
+    
     if not problems:
-        if list_filter:
+        if pattern_filter:
+            console.print(f"[yellow]No problems found with pattern '{pattern_filter}'.[/yellow]\n")
+        elif list_filter:
             console.print(f"[yellow]No problems found in list '{list_filter}'.[/yellow]\n")
         else:
             console.print("[yellow]No problems in database. Run 'dsaprep init' first.[/yellow]\n")
         raise typer.Exit(1)
     
-    # Show which list we're viewing
+    # Show filters
+    filters = []
     if list_filter:
-        console.print(f"[dim]Showing: {list_filter}[/dim]\n")
+        filters.append(f"List: {list_filter}")
+    if pattern_filter:
+        filters.append(f"Pattern: {pattern_filter}")
+    if filters:
+        console.print(f"[dim]{' | '.join(filters)}[/dim]\n")
     
-    # Summary panel
+    # Summary
+    total = len(problems)
+    solved = sum(1 for p in problems if p.times_solved > 0)
+    due = sum(1 for p in problems if p.next_review and p.next_review <= date.today())
+    
     summary = Table(show_header=False, box=None)
     summary.add_column("Metric", style="dim")
     summary.add_column("Value", style="bold")
     
-    summary.add_row("Total Problems", str(stat['total_problems']))
-    summary.add_row("Problems Started", f"{stat['problems_started']} ({stat['problems_started']*100//max(stat['total_problems'],1)}%)")
-    summary.add_row("New Problems", str(stat['new_problems']))
-    summary.add_row("Due Today", f"[{'red' if stat['due_today'] > 0 else 'green'}]{stat['due_today']}[/]")
-    summary.add_row("Total Reviews", str(stat['total_reviews']))
+    summary.add_row("Total Problems", str(total))
+    summary.add_row("Problems Started", f"{solved} ({solved*100//max(total,1)}%)")
+    summary.add_row("New Problems", str(total - solved))
+    summary.add_row("Due Today", f"[{'red' if due > 0 else 'green'}]{due}[/]")
     
     console.print(Panel(summary, title="[bold]Summary[/bold]", border_style="cyan"))
     console.print()
     
     # Problems table
-    table = Table(title="All Problems", show_lines=False)
+    table = Table(title="Problems", show_lines=False)
     table.add_column("ID", style="dim", width=4)
     table.add_column("Name", style="bold", max_width=35)
     table.add_column("Pattern", style="cyan", width=18)
