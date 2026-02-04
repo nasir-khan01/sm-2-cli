@@ -1,0 +1,17 @@
+[project]
+name = "dsaprep"
+version = "0.1.0"
+description = "DSA interview prep CLI with Spaced Repetition System (SM-2)"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pytest>=9.0.2",
+    "rich>=14.3.2",
+    "typer>=0.21.1",
+]
+
+[project.scripts]
+dsaprep = "dsaprep.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
