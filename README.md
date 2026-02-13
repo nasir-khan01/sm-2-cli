@@ -90,6 +90,13 @@ dsaprep add-problem \
 dsaprep lists
 ```
 
+### Reset Progress
+```bash
+dsaprep reset              # interactive confirmation
+dsaprep reset --yes        # skip confirmation
+dsaprep reset -l "Blind 75" -y  # reset only a specific list
+```
+
 ---
 
 ## 🧮 SM-2 Algorithm

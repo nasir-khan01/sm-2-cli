@@ -355,6 +355,41 @@ def update_problem_srs(
     conn.close()
 
 
+def reset_progress(source_list: Optional[str] = None) -> int:
+    """
+    Reset all SRS progress data back to defaults.
+
+    Keeps problem definitions but clears all review history.
+
+    Args:
+        source_list: If provided, only reset problems from this list.
+
+    Returns:
+        Number of problems reset.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    if source_list:
+        cursor.execute("""
+            UPDATE problems
+            SET repetition = 0, ease_factor = 2.5, interval = 0,
+                next_review = NULL, last_reviewed = NULL, times_solved = 0
+            WHERE source_list = ?
+        """, (source_list,))
+    else:
+        cursor.execute("""
+            UPDATE problems
+            SET repetition = 0, ease_factor = 2.5, interval = 0,
+                next_review = NULL, last_reviewed = NULL, times_solved = 0
+        """)
+
+    affected = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return affected
+
+
 def get_stats(source_list: Optional[str] = None) -> dict:
     """Get study statistics."""
     conn = get_connection()

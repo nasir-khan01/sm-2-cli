@@ -30,6 +30,7 @@ from dsaprep.database import (
     get_all_patterns,
     get_all_lists,
     update_problem_srs,
+    reset_progress,
     DB_PATH,
     DEFAULT_PATTERNS,
     PATTERN_ORDER,
@@ -601,6 +602,41 @@ def stats(
     
     console.print(table)
     console.print()
+
+
+@app.command()
+def reset(
+    list_filter: Optional[str] = typer.Option(None, "--list", "-l", help="Only reset a specific list"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+):
+    """
+    Reset all progress data to zero (keeps problems, clears SRS data).
+    """
+    console.print()
+
+    # Describe what will be reset
+    if list_filter:
+        scope = f"all problems in list [bold]'{list_filter}'[/bold]"
+    else:
+        scope = "[bold]all problems[/bold]"
+
+    console.print(
+        f"[yellow]⚠  This will reset progress for {scope}.[/yellow]\n"
+        "   Repetition, ease factor, interval, review dates, and solve count\n"
+        "   will be set back to defaults.\n"
+    )
+
+    if not yes:
+        confirm = Prompt.ask(
+            "[bold red]Are you sure?[/bold red] Type [bold]yes[/bold] to confirm",
+            default="no",
+        )
+        if confirm.lower() not in ("yes", "y"):
+            console.print("[dim]Aborted.[/dim]\n")
+            raise typer.Exit(0)
+
+    count = reset_progress(source_list=list_filter)
+    console.print(f"[green]✓[/green] Reset progress for [bold]{count}[/bold] problems.\n")
 
 
 @app.command()
