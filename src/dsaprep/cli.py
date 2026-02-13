@@ -189,16 +189,29 @@ def add_problem(
     """
     Add a custom problem to the database.
     
-    Can be used with arguments or interactively.
+    Can be used with arguments or interactively. Type 'cancel' at any prompt to abort.
     """
-    console.print("\n[bold cyan]➕ Add New Problem[/bold cyan]\n")
+    console.print("\n[bold cyan]➕ Add New Problem[/bold cyan]")
+    console.print("[dim]Type 'cancel' at any prompt to abort.[/dim]\n")
+    
+    def _prompt_or_cancel(prompt_text, **kwargs):
+        """Prompt with cancel support. Raises typer.Exit on cancel or Ctrl+C."""
+        try:
+            value = Prompt.ask(prompt_text, **kwargs)
+        except KeyboardInterrupt:
+            console.print("\n[dim]Cancelled.[/dim]\n")
+            raise typer.Exit(0)
+        if value.lower().strip() == "cancel":
+            console.print("[dim]Cancelled.[/dim]\n")
+            raise typer.Exit(0)
+        return value
     
     # Interactive mode if args not provided
     if not title:
-        title = Prompt.ask("[bold]Problem title[/bold]")
+        title = _prompt_or_cancel("[bold]Problem title[/bold]")
     
     if not url:
-        url = Prompt.ask("[bold]Problem URL[/bold]")
+        url = _prompt_or_cancel("[bold]Problem URL[/bold]")
     
     if not pattern:
         console.print("\n[dim]Available patterns:[/dim]")
@@ -206,7 +219,7 @@ def add_problem(
             console.print(f"  {i:2}. {p}")
         console.print()
         
-        pattern_input = Prompt.ask(
+        pattern_input = _prompt_or_cancel(
             "[bold]Pattern[/bold] (name or number)",
             default="General"
         )
@@ -222,13 +235,13 @@ def add_problem(
             pattern = pattern_input
     
     if not list_name:
-        list_name = Prompt.ask(
+        list_name = _prompt_or_cancel(
             "[bold]Source list[/bold]",
             default="Custom"
         )
     
     if not difficulty:
-        difficulty = Prompt.ask(
+        difficulty = _prompt_or_cancel(
             "[bold]Difficulty[/bold]",
             choices=["Easy", "Medium", "Hard"],
             default="Medium"
