@@ -7,7 +7,7 @@ Handles SQLite operations for storing and retrieving problem data.
 import sqlite3
 import json
 from pathlib import Path
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Optional
 from dataclasses import dataclass
 
@@ -518,6 +518,100 @@ def _parse_date(date_str: Optional[str]) -> Optional[date]:
         return None
 
 
+def get_streak() -> int:
+    """
+    Calculate the current study streak (consecutive days with at least 1 review).
+
+    Returns:
+        Number of consecutive days ending today or yesterday.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT DISTINCT last_reviewed FROM problems
+        WHERE last_reviewed IS NOT NULL
+        ORDER BY last_reviewed DESC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+
+    if not rows:
+        return 0
+
+    reviewed_dates = set()
+    for row in rows:
+        d = _parse_date(row[0])
+        if d:
+            reviewed_dates.add(d)
+
+    if not reviewed_dates:
+        return 0
+
+    today = date.today()
+    # Streak can start from today or yesterday
+    if today in reviewed_dates:
+        current = today
+    elif (today - timedelta(days=1)) in reviewed_dates:
+        current = today - timedelta(days=1)
+    else:
+        return 0
+
+    streak = 0
+    while current in reviewed_dates:
+        streak += 1
+        current -= timedelta(days=1)
+
+    return streak
+
+
+def get_milestone_stats() -> dict:
+    """
+    Get stats useful for milestone detection.
+
+    Returns:
+        Dict with: total_solved, total_reviews, completed_patterns (list),
+        solved_today count.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    today = date.today().isoformat()
+
+    # Total unique problems solved
+    cursor.execute("SELECT COUNT(*) FROM problems WHERE times_solved > 0")
+    total_solved = cursor.fetchone()[0]
+
+    # Total reviews
+    cursor.execute("SELECT SUM(times_solved) FROM problems")
+    total_reviews = cursor.fetchone()[0] or 0
+
+    # Solved today
+    cursor.execute(
+        "SELECT COUNT(*) FROM problems WHERE last_reviewed = ?",
+        (today,)
+    )
+    solved_today = cursor.fetchone()[0]
+
+    # Completed patterns (100% solved)
+    cursor.execute("""
+        SELECT pattern, COUNT(*) as total,
+               SUM(CASE WHEN times_solved > 0 THEN 1 ELSE 0 END) as solved
+        FROM problems
+        GROUP BY pattern
+        HAVING total = solved AND total > 0
+    """)
+    completed_patterns = [row[0] for row in cursor.fetchall()]
+
+    conn.close()
+
+    return {
+        'total_solved': total_solved,
+        'total_reviews': total_reviews,
+        'solved_today': solved_today,
+        'completed_patterns': completed_patterns,
+    }
+
+
 def _infer_pattern(category: str) -> str:
     """Infer pattern from category for legacy data."""
     mapping = {
@@ -533,3 +627,4 @@ def _infer_pattern(category: str) -> str:
         'Heap': 'Heap / Priority Queue',
     }
     return mapping.get(category, 'General')
+

@@ -36,6 +36,13 @@ from dsaprep.database import (
     PATTERN_ORDER,
 )
 from dsaprep.srs import calculate_sm2
+from dsaprep.ux import (
+    print_banner,
+    print_daily_summary,
+    print_celebration,
+    check_milestones,
+    print_tip,
+)
 
 # Optional motivation module (local-only, not in repo)
 try:
@@ -62,7 +69,8 @@ def init():
     """
     Initialize the database and seed with Blind 75 problems.
     """
-    console.print("\n[bold cyan]🚀 Initializing DSAPrep...[/bold cyan]\n")
+    print_banner()
+    console.print("[bold cyan]🚀 Initializing DSAPrep...[/bold cyan]\n")
     
     # Initialize database
     init_db()
@@ -103,7 +111,7 @@ def dashboard(
     """
     Display pattern-wise progress dashboard.
     """
-    console.print("\n[bold cyan]📊 DSAPrep Dashboard[/bold cyan]\n")
+    print_banner()
     
     # Get pattern stats
     pattern_stats = get_pattern_stats(source_list=list_filter)
@@ -130,7 +138,9 @@ def dashboard(
     summary_text.append(f"Due: {overall['due_today']}", style="red" if overall['due_today'] > 0 else "green")
     
     console.print(Panel(summary_text, border_style="cyan"))
-    console.print()
+    
+    # Daily summary bar with streak
+    print_daily_summary(source_list=list_filter)
     
     # Pattern-wise progress (NeetCode order)
     def pattern_sort_key(item):
@@ -249,7 +259,8 @@ def next_problem(
     
     Shows the most overdue problem, or a new one if all are up to date.
     """
-    console.print()
+    # Daily summary bar
+    print_daily_summary(source_list=list_filter)
     
     # Check for slacking first
     check_slacking()
@@ -397,6 +408,9 @@ def solve(problem_id: int):
         repetition=result.repetition
     )
     
+    # Celebration
+    print_celebration(score, problem.name)
+    
     # Show result
     console.print()
     if score < 3:
@@ -415,7 +429,10 @@ def solve(problem_id: int):
             border_style="green",
         ))
     
+    # Milestones + tip
+    check_milestones()
     print_encouragement()
+    print_tip()
 
 
 @app.command()
@@ -507,12 +524,19 @@ def log(
         repetition=result.repetition
     )
     
+    # Celebration
+    print_celebration(score, problem.name)
+    
     # Show result
     console.print()
     if score < 3:
         console.print(f"[yellow]⚠ Will review tomorrow.[/yellow] Next: {result.next_review}\n")
     else:
         console.print(f"[green]✓ Logged![/green] Next review: {result.next_review} (in {result.interval} days)\n")
+    
+    # Milestones + tip
+    check_milestones()
+    print_tip()
 
 
 @app.command()
@@ -523,7 +547,9 @@ def stats(
     """
     Display your study progress and statistics.
     """
-    console.print("\n[bold cyan]📊 DSAPrep Statistics[/bold cyan]\n")
+    console.print()
+    print_daily_summary(source_list=list_filter)
+    console.print("[bold cyan]📊 DSAPrep Statistics[/bold cyan]\n")
     
     # Get problems with filters
     problems = get_all_problems(source_list=list_filter)

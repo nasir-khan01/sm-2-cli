@@ -20,8 +20,8 @@ Use it to master anything: coding problems, flashcards, study material, or any s
 ## 🚀 Installation
 
 ```bash
-git clone https://github.com/yourusername/sm2-cli.git
-cd sm2-cli
+git clone https://github.com/nasir-khan01/sm-2-cli.git
+cd sm-2-cli
 uv pip install -e .
 ```
 
@@ -99,14 +99,39 @@ dsaprep reset -l "Blind 75" -y  # reset only a specific list
 
 ---
 
-## 🧮 SM-2 Algorithm
+## 📋 Cheatsheet
 
-| Score | Meaning | Next Interval |
-|-------|---------|---------------|
-| 0-2 | Incorrect/Forgot | 1 day |
-| 3 | Correct with difficulty | Previous × EF |
-| 4 | Correct after hesitation | Previous × EF |
-| 5 | Perfect recall | Previous × EF |
+### Commands
+
+| Command | Description | Example |
+|---|---|---|
+| `dsaprep init` | Initialize DB & seed Blind 75 | `dsaprep init` |
+| `dsaprep dashboard` | Pattern-wise progress bars | `dsaprep dashboard -l "Blind 75"` |
+| `dsaprep next` | Get next problem to review | `dsaprep next -p "Trees"` |
+| `dsaprep solve <id>` | Open in browser & rate | `dsaprep solve 1` |
+| `dsaprep log <search>` | Rate without opening browser | `dsaprep log "Two Sum" -s 4` |
+| `dsaprep stats` | Detailed stats & problem table | `dsaprep stats -p "Graphs"` |
+| `dsaprep add-problem` | Add a custom problem | `dsaprep add-problem -t "LRU Cache" -u "..." -p "Linked Lists"` |
+| `dsaprep lists` | Show all problem lists | `dsaprep lists` |
+| `dsaprep reset` | Reset all progress to zero | `dsaprep reset -l "Blind 75" -y` |
+
+### Common Flags
+
+| Flag | Available on | Description |
+|---|---|---|
+| `-l`, `--list` | dashboard, next, stats, reset | Filter by source list |
+| `-p`, `--pattern` | next, stats | Filter by pattern |
+| `-s`, `--score` | log | Provide rating directly (0–5) |
+| `-y`, `--yes` | reset | Skip confirmation prompt |
+
+### Scoring (SM-2)
+
+| Score | Meaning | Effect |
+|---|---|---|
+| **0–2** | Forgot / Incorrect | Resets to 1 day |
+| **3** | Correct with difficulty | Interval × EF (slower) |
+| **4** | Correct after hesitation | Interval × EF (steady) |
+| **5** | Perfect recall | Interval × EF (fastest) |
 
 ---
 
