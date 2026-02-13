@@ -105,6 +105,7 @@ dsaprep reset -l "Blind 75" -y  # reset only a specific list
 
 | Command | Description | Example |
 |---|---|---|
+| `dsaprep --help` | Show all available commands | `dsaprep --help` |
 | `dsaprep init` | Initialize DB & seed Blind 75 | `dsaprep init` |
 | `dsaprep dashboard` | Pattern-wise progress bars | `dsaprep dashboard -l "Blind 75"` |
 | `dsaprep next` | Get next problem to review | `dsaprep next -p "Trees"` |
